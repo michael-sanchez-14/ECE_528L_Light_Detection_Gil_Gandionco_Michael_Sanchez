@@ -80,7 +80,7 @@ OPT3001_Config Read_Sensor_Configuration;
  */
 static void OPT3001_Write_Data(OPT3001_Commands command)
 {
-
+    EUSCI_B1_I2C_Send_Multiple_Bytes(OPT3001_ADDRESS, &command, 1);
 }
 
 /**
@@ -92,7 +92,9 @@ static void OPT3001_Write_Data(OPT3001_Commands command)
  */
 static void OPT3001_Read_Data(uint16_t* data)
 {
-
+    uint8_t buffer[2];
+    EUSCI_B1_I2C_Receive_Multiple_Bytes(OPT3001_ADDRESS, buffer, 2);
+    *data = buffer[1] + ((uint16_t)buffer[0] << 8);
 }
 
 /**
@@ -120,7 +122,15 @@ OPT3001_Result static OPT3001_Read_Register(OPT3001_Commands command)
  */
 static void OPT3001_Write_Register(uint8_t register_address, uint16_t register_data)
 {
+    uint8_t buffer[] =
+    {
+         register_address,
+         (register_data >> 8) & 0xFF,
+         register_data & 0xFF,
+    };
 
+    EUSCI_B1_I2C_Send_Multiple_Bytes(OPT3001_ADDRESS, buffer, sizeof(buffer));
+    Clock_Delay1us(10);
 }
 
 /**
@@ -132,7 +142,7 @@ static void OPT3001_Write_Register(uint8_t register_address, uint16_t register_d
  */
 static void OPT3001_Write_Configuration(OPT3001_Config config)
 {
-
+    OPT3001_Write_Register(CONFIG, config.RawData);
 }
 
 /**
@@ -152,7 +162,22 @@ OPT3001_Config static OPT3001_Read_Configuration()
 
 void OPT3001_Init()
 {
+    P4->SEL0 &= ~0x24;
+    P4->SEL1 &= ~0x24;
+    P4->DIR &= ~0x04;
+    P4->REN |= 0x04;
+    P4->OUT |= 0x04;
+    P4->DIR |= 0x20;
+    P4->OUT |= 0x20;
 
+    Clock_Delay1ms(1);
+    OPT3001_Config New_Config;
+    New_Config.RangeNumber = 0x0C;
+    New_Config.ConversionTime = 0;
+    New_Config.Latch = 1;
+    New_Config.ModeOfConversionOperation = 3;
+    OPT3001_Write_Configuration(New_Config);
+    Read_Sensor_Configuration = OPT3001_Read_Configuration();
 }
 
 OPT3001_Result OPT3001_Read_Light()
